@@ -76,3 +76,79 @@ exports.login = async (req, res) => {
     res.status(401).json(error)
   }
 }
+
+exports.createAd = async (req, res) => {
+  try {
+    const imagePath = req.file ? `/profileImages/${req.file.filename}` : null;
+
+    const newUser = new users({
+      userId: Date.now(),
+      name: req.body.name,
+      address: req.body.address,
+      location: req.body.location,
+      contact: req.body.contact,
+      Image: imagePath,
+    });
+
+    await newUser.save();
+
+    res.status(201).json({ message: "Profile created successfully", user: newUser });
+  } catch (error) {
+    console.error("Error creating profile:", error);
+    res.status(500).json({ error: "Failed to create profile" });
+  }
+};
+exports.getUser = async (req, res) => {
+  try {
+    const userId = Number(req.params.userId);
+    const user = await users.findOne({ userId });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    res.status(200).json(user);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch profile" });
+  }
+};
+exports.editUser = async (req, res) => {
+  try {
+
+    const userId = Number(req.params.userId);
+    // console.log("Updating user with ID:", userId, "Request Body:", req.body);
+
+    const imageUrl = req.file ? `/profileImages/${req.file.filename}` : null;
+
+    const existingUser = await users.findOne({ userId });
+
+    if (!existingUser) {
+      console.error("User not found:", userId);
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const updateData = {
+      ...(imageUrl ? { Image: imageUrl } : {}),
+      name: req.body.name,
+      address: req.body.address,
+      location: req.body.location,
+      contact: req.body.contact,
+    };
+    
+    const updatedUser = await users.findOneAndUpdate(
+      { userId },
+      { $set: updateData },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      console.error("Database update failed for user:", userId);
+      return res.status(500).json({ message: "Error updating profile" });
+    }
+
+    // console.log("Updated User:", updatedUser);
+    return res.status(200).json({ message: "Profile updated successfully!", data: updatedUser });
+
+  } catch (error) {
+    console.error("Error updating user:", error);
+    return res.status(500).json({ error: error.message });
+  }
+};
