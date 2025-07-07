@@ -6,6 +6,7 @@ const app=express()
 require('./database/connection')
 const PORT=3000;
 const router=require('./Routes/route')
+app.use('/uploads',express.static("uploads"))
 
 app.use(express.json());
 app.use(cors())

@@ -77,27 +77,6 @@ exports.login = async (req, res) => {
   }
 }
 
-exports.createAd = async (req, res) => {
-  try {
-    const imagePath = req.file ? `/profileImages/${req.file.filename}` : null;
-
-    const newUser = new users({
-      userId: Date.now(),
-      name: req.body.name,
-      address: req.body.address,
-      location: req.body.location,
-      contact: req.body.contact,
-      Image: imagePath,
-    });
-
-    await newUser.save();
-
-    res.status(201).json({ message: "Profile created successfully", user: newUser });
-  } catch (error) {
-    console.error("Error creating profile:", error);
-    res.status(500).json({ error: "Failed to create profile" });
-  }
-};
 exports.getUser = async (req, res) => {
   try {
     const userId = Number(req.params.userId);
@@ -105,18 +84,19 @@ exports.getUser = async (req, res) => {
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.status(200).json(user);
+    res.status(200).json({ message: "User found", data: user }); // ✅ Wrap in `data`
   } catch (error) {
     res.status(500).json({ error: "Failed to fetch profile" });
   }
 };
+
 exports.editUser = async (req, res) => {
   try {
 
     const userId = Number(req.params.userId);
     // console.log("Updating user with ID:", userId, "Request Body:", req.body);
 
-    const imageUrl = req.file ? `/profileImages/${req.file.filename}` : null;
+    const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
 
     const existingUser = await users.findOne({ userId });
 
