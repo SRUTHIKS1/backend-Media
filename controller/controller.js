@@ -1,6 +1,8 @@
 require('dotenv').config()
-const users=require("../schema/userSchema")
-const bcrypt=require("bcrypt")
+const users = require("../schema/userSchema")
+const Folder = require("../schema/folderSchema")
+const Bookmark = require("../schema/bookmarkSchema")
+const bcrypt = require("bcrypt")
 const jwt = require('jsonwebtoken');
 const crypto = require("crypto");
 const { Resend } = require("resend");
@@ -49,36 +51,35 @@ exports.register = async (req, res) => {
 }
 
 exports.login = async (req, res) => {
-  const user = req.body
-  const { email, password } = user
-  //console.log(user)//
+  const { email, password } = req.body;
+
   try {
-    const existingUser = await users.findOne({ email: email })
-    console.log(existingUser)//
+    const existingUser = await users.findOne({ email });
+
     if (!existingUser) {
-      return res.status(400).json("user not found")
+      return res.status(400).json("User not found");
     }
-    const isMatch = await bcrypt.compare(password, existingUser.password)
+
+    const isMatch = await bcrypt.compare(password, existingUser.password);
+
     if (!isMatch) {
-      return res.status(400).json("invalid")
+      return res.status(400).json("Invalid credentials");
     }
-    const secretKey = process.env.JWT_SECRET
-    const token = jwt.sign({ email: existingUser.email }, secretKey, { expiresIn: '1h' })
-    return res.status(200).json({ userDetails: existingUser, token })
 
+    const secretKey = process.env.JWT_SECRET;
 
-    // } else {
+    // ✅ Add userId to token
+    const token = jwt.sign(
+      { userId: existingUser.userId, email: existingUser.email },
+      secretKey,
+      { expiresIn: "1h" }
+    );
 
-    //     const newUser = new users({ username, email, password })
-    //     await newUser.save()
-    //     res.status(200).json(newUser)
-
-
-    // }
+    return res.status(200).json({ userDetails: existingUser, token });
   } catch (error) {
-    res.status(401).json(error)
+    res.status(500).json(error);
   }
-}
+};
 
 exports.getUser = async (req, res) => {
   try {
@@ -115,7 +116,7 @@ exports.editUser = async (req, res) => {
       location: req.body.location,
       contact: req.body.contact,
     };
-    
+
     const updatedUser = await users.findOneAndUpdate(
       { userId },
       { $set: updateData },
@@ -163,15 +164,15 @@ exports.forgotPassword = async (req, res) => {
     // Send email
     const resend = new Resend('re_SUEcK81p_8KMG2sSe8MbLUxtpB9DXp1GS');
     try {
-      
-     const{data,error}= await resend.emails.send({
+
+      const { data, error } = await resend.emails.send({
         from: 'onboarding@resend.dev',
         to: email,
         subject: 'Reset Password',
         html: `<p>This is the link to reset your password:<br/><a href="${resetLink}">${resetLink}</a></p>`
       });
-      console.log("data:",data);
-      console.log("error:",error)
+      console.log("data:", data);
+      console.log("error:", error)
     } catch (emailError) {
       console.error("Email sending failed:", emailError);
       // Optionally: log or alert admin
@@ -210,5 +211,172 @@ exports.resetPassword = async (req, res) => {
     res.status(200).json({ message: 'Password has been reset successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Something went wrong' });
+  }
+};
+
+// in controller.js
+const generateBookmarkId = async () => {
+  const last = await Bookmark.findOne().sort({ bookmarkId: -1 });
+  return last ? last.bookmarkId + 1 : 1000;
+};
+exports.getBookmarkById = async (req, res) => {
+  try {
+    const { bookmarkId } = req.params;
+    const userId = req.userId;
+
+    const bookmark = await Bookmark.findOne({
+      bookmarkId: Number(bookmarkId),
+      userId,
+    });
+
+    if (!bookmark) {
+      return res.status(404).json({ message: "Bookmark not found" });
+    }
+
+    res.status(200).json({ bookmark });
+  } catch (error) {
+    console.error("Get bookmark error:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+
+exports.createBookmark = async (req, res) => {
+  try {
+    const { title, url, description, folderId, thumbnail } = req.body;
+    const userId = req.userId;
+
+    // ✅ Debug logs
+    console.log("userId from token:", userId);
+    console.log("Received data:", req.body);
+
+    if (!title || !url || !folderId) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const bookmarkId = await generateBookmarkId();
+
+    const newBookmark = new Bookmark({
+      bookmarkId,
+      title,
+      url,
+      description,
+      folderId,
+      userId,
+      thumbnail,
+    });
+
+    await newBookmark.save();
+
+    return res.status(201).json({ message: "Bookmark created", bookmark: newBookmark });
+  } catch (err) {
+    console.error("Bookmark creation error:", err);
+    return res.status(500).json({ message: "Failed to create bookmark", error: err.message });
+  }
+};
+exports.editBookmark = async (req, res) => {
+  try {
+    const { bookmarkId } = req.params;
+    const userId = req.userId; // from JWT middleware
+    const { title, url, description, thumbnail, folderId } = req.body;
+
+    if (!title || !url || !folderId) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const bookmark = await Bookmark.findOneAndUpdate(
+      { bookmarkId: Number(bookmarkId), userId },
+      {
+        $set: {
+          title,
+          url,
+          description,
+          thumbnail,
+          folderId,
+        },
+      },
+      { new: true }
+    );
+
+    if (!bookmark) {
+      return res.status(404).json({ message: "Bookmark not found or unauthorized" });
+    }
+
+    res.status(200).json({ message: "Bookmark updated successfully", bookmark });
+  } catch (error) {
+    console.error("Error updating bookmark:", error);
+    res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+};
+
+
+
+
+
+const generateFolderId = async () => {
+  const lastFolder = await Folder.findOne().sort({ folderId: -1 });
+  return lastFolder ? lastFolder.folderId + 1 : 1000;
+};
+
+exports.createFolder = async (req, res) => {
+  try {
+    const { name } = req.body;
+    const userId = req.userId; // 🟢 Comes from JWT
+
+    if (!name) {
+      return res.status(400).json({ message: "Folder name is required" });
+    }
+
+    const folderId = await generateFolderId();
+
+    const newFolder = new Folder({
+      folderId,
+      name,
+      userId,
+    });
+
+    await newFolder.save();
+
+    return res.status(201).json({
+      message: "Folder created successfully",
+      folder: newFolder,
+    });
+  } catch (error) {
+    console.error("Folder creation error:", error);
+    return res.status(500).json({
+      message: "Failed to create folder",
+      error,
+    });
+  }
+};
+
+
+exports.getFolderList = async (req, res) => {
+  try {
+    const userId = req.userId; // 🟢 From JWT
+
+    const folders = await Folder.find({ userId }).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      message: "Folders fetched successfully",
+      folders,
+    });
+  } catch (error) {
+    console.error("Error fetching folders:", error);
+    return res.status(500).json({
+      message: "Failed to fetch folders",
+      error: error.message,
+    });
+  }
+};
+exports.getBookmarksByFolderId = async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const userId = req.userId;
+
+    const bookmarks = await Bookmark.find({ folderId, userId }).sort({ createdAt: -1 });
+    return res.status(200).json({ bookmarks });
+  } catch (err) {
+    return res.status(500).json({ message: "Failed to fetch bookmarks", error: err.message });
   }
 };
