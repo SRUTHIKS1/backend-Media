@@ -380,3 +380,46 @@ exports.getBookmarksByFolderId = async (req, res) => {
     return res.status(500).json({ message: "Failed to fetch bookmarks", error: err.message });
   }
 };
+exports.deleteBookmark = async (req, res) => {
+  try {
+    const userId = req.userId;
+    const bookmarkId = Number(req.params.bookmarkId);
+
+    const deleted = await Bookmark.findOneAndDelete({ bookmarkId, userId });
+    if (!deleted) {
+      return res.status(404).json({ message: "Bookmark not found" });
+    }
+
+    res.status(200).json({ message: "Bookmark deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete bookmark", error: err.message });
+  }
+};
+// controller.js
+exports.renameFolder = async (req, res) => {
+  const { folderId } = req.params;
+  const { name } = req.body;
+  const userId = req.userId;
+  try {
+    const updated = await Folder.findOneAndUpdate(
+      { folderId, userId },
+      { name },
+      { new: true }
+    );
+    res.status(200).json({ folder: updated });
+  } catch (err) {
+    res.status(500).json({ message: "Rename failed", error: err.message });
+  }
+};
+
+exports.deleteFolder = async (req, res) => {
+  const { folderId } = req.params;
+  const userId = req.userId;
+  try {
+    await Folder.findOneAndDelete({ folderId, userId });
+    await Bookmark.deleteMany({ folderId, userId }); // clean up bookmarks
+    res.status(200).json({ message: "Folder deleted" });
+  } catch (err) {
+    res.status(500).json({ message: "Delete failed", error: err.message });
+  }
+};

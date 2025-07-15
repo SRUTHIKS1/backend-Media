@@ -1,5 +1,5 @@
 const express = require("express");
-const { register, login, getUser, editUser, forgotPassword, resetPassword, createFolder, getFolderList, createBookmark, editBookmark, getBookmarkById, getAllBookmarks, getBookmarksByFolderId } = require("../controller/controller");
+const { register, login, getUser, editUser, forgotPassword, resetPassword, createFolder, getFolderList, createBookmark, editBookmark, getBookmarkById, getAllBookmarks, getBookmarksByFolderId, deleteBookmark, renameFolder, deleteFolder } = require("../controller/controller");
 const upload = require("../middleware/multerMiddleware");
 const jwtMiddleware = require("../middleware/jwtMiddleware");
 
@@ -18,6 +18,12 @@ router.post("/bookmarks/create", jwtMiddleware, createBookmark);
 router.put("/bookmarks/edit/:bookmarkId", jwtMiddleware, editBookmark);
 router.get("/bookmarks/:bookmarkId", jwtMiddleware, getBookmarkById);
 router.get("/bookmarks/folder/:folderId", jwtMiddleware, getBookmarksByFolderId);
+router.delete("/bookmarks/delete/:bookmarkId", jwtMiddleware, deleteBookmark);
+// routes.js
+router.put("/folders/rename/:folderId", jwtMiddleware, renameFolder);
+router.delete("/folders/delete/:folderId", jwtMiddleware, deleteFolder);
+
+
 
 
 
